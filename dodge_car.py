@@ -4,6 +4,9 @@ import pygame
 import sys
 import os
 import time
+import tkinter as tk
+from tkinter import messagebox
+import pickle
 
 class CarRacing:
     def __init__(self):
@@ -15,6 +18,10 @@ class CarRacing:
         self.red = (255, 0, 0)
         self.green = (0, 255, 0)
         self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 36)  # فونت پیش‌فرض با اندازه 36
+
+        # Set working directory to script location
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
         # مسیر فایل‌های تصویری
         self.base_path = getattr(sys, '_MEIPASS', '.')
@@ -37,12 +44,12 @@ class CarRacing:
         self.car_control = 50
 
         # مقداردهی متغیرهای مربوط به پس‌زمینه، ماشین‌ها و اجزای دیگر
-        # بارگذاری ماشین بازیکن
         self.car_colors = [
             os.path.join(self.base_path, 'img', 'car.png'),
             os.path.join(self.base_path, 'img', 'car_2.png'),
             os.path.join(self.base_path, 'img', 'car_3.png')
         ]
+        self.car_selected = 0  # ماشین پیش‌فرض (car.png)
         self.load_car_image()
 
         self.car_x_coordinate = (self.display_width * 0.45)
@@ -84,293 +91,280 @@ class CarRacing:
             self.pumpImg = pygame.image.load(self.pumpImg_path)
         except pygame.error as e:
             print(f"Error loading fuel pump image: {e}")
-            sys.exit()
+            sys.exit("Required image files are missing. Please check the 'img' folder.")
 
         self.pump_width = 49
         self.pump_height = 50
         self.pump_x = random.randint(310, 450)
         self.pump_y = random.randint(-600, -100)
 
+
+    def save_game(self):
+        save_path = os.path.join(os.path.dirname(__file__), "savegame.pkl")  # تورفتگی 4 فاصله
+        save_data = {
+            'lives': self.lives,
+            'score': self.score,
+            'fuel': self.fuel,
+            'car_x_coordinate': self.car_x_coordinate,
+            'car_y_coordinate': self.car_y_coordinate,
+            'enemy_car_startx': self.enemy_car_startx,
+            'enemy_car_starty': self.enemy_car_starty,
+            'enemy_car_speed': self.enemy_car_speed,
+            'bg_y1': self.bg_y1,
+            'bg_y2': self.bg_y2
+        }
+        try:
+            with open(save_path, "wb") as f:
+                pickle.dump(save_data, f)
+            print("Game Saved!")
+        except Exception as e:
+            print(f"Error saving game: {e}")
+    def load_game(self):
+        save_path = os.path.join(os.path.dirname(__file__), "savegame.pkl")
+        try:
+            with open(save_path, "rb") as f:
+                save_data = pickle.load(f)
+                self.lives = save_data['lives']
+                self.score = save_data['score']
+                self.fuel = save_data['fuel']
+                self.car_x_coordinate = save_data['car_x_coordinate']
+                self.car_y_coordinate = save_data['car_y_coordinate']
+                self.enemy_car_startx = save_data['enemy_car_startx']
+                self.enemy_car_starty = save_data['enemy_car_starty']
+                self.enemy_car_speed = save_data['enemy_car_speed']
+                self.bg_y1 = save_data['bg_y1']
+                self.bg_y2 = save_data['bg_y2']
+            print("Game Loaded!")
+        except FileNotFoundError:
+            print("No saved game found. Starting a new game.")
+        except Exception as e:
+            print(f"Error loading game: {e}")
+
+
+
     def load_car_image(self):
         try:
-            self.carImg = pygame.image.load(random.choice(self.car_colors))
+            self.carImg = pygame.image.load(self.car_colors[self.car_selected])
         except pygame.error as e:
             print(f"Error loading player car image: {e}")
-            sys.exit()
+            sys.exit("Required car image files are missing. Please check the 'img' folder.")
 
     def load_enemy_car_image(self):
         try:
-            self.enemy_car = pygame.image.load(random.choice(self.enemy_car_colors))
+            selected_enemy_car = random.choice(self.enemy_car_colors)
+            self.enemy_car = pygame.image.load(selected_enemy_car)
         except pygame.error as e:
             print(f"Error loading enemy car image: {e}")
-            sys.exit()
+            sys.exit("Required enemy car image files are missing. Please check the 'img' folder.")
 
     def load_background_image(self):
         try:
-            self.bgImg = pygame.image.load(random.choice(self.bg_colors))
+            selected_bg = random.choice(self.bg_colors)
+            self.bgImg = pygame.image.load(selected_bg)
         except pygame.error as e:
             print(f"Error loading background image: {e}")
-            sys.exit()
+            sys.exit("Background image file is missing. Please check the 'img' folder.")
 
     def car(self, car_x_coordinate, car_y_coordinate):
         self.gameDisplay.blit(self.carImg, (car_x_coordinate, car_y_coordinate))
 
+    def display_lives(self):
+    # ساخت متن با کاراکتر قلب
+        heart_text = self.font.render(f"Lives: {'\u2764 ' * self.lives}", True, self.red)
+    # رسم متن در بالای صفحه
+        self.gameDisplay.blit(heart_text, (10, 10))
+
+    def display_fuel(self):
+        pygame.draw.rect(self.gameDisplay, self.green, (10, 50, self.fuel, 20))
+        pygame.draw.rect(self.gameDisplay, self.white, (10, 50, 100, 20), 2)
+    def display_score(self):
+        score_text = self.font.render(f"Score: {self.score}", True, self.white)  # متن امتیاز
+        self.gameDisplay.blit(score_text, (10, 80))  # رسم متن روی صفحه در موقعیت مشخص
     def racing_window(self):
         self.gameDisplay = pygame.display.set_mode((self.display_width, self.display_height))
         pygame.display.set_caption('Car Dodge')
-        self.run_car()
+        self.show_main_menu()
 
     def run_car(self):
-        while not self.crashed and self.lives > 0:
-            current_time = time.time()
-
-            # بررسی وضعیت سپر دفاعی
-            if self.shield_active and current_time > self.shield_end_time:
-                self.shield_active = False
-
-            # بررسی زمان پایان استفاده از لیزر
-            if self.weapon_purchased and current_time > self.laser_end_time:
-                self.weapon_purchased = False
-
+        self.crashed = False
+        while not self.crashed:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.crashed = True
-
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_a:  # Move left
-                        if self.car_x_coordinate - self.car_control >= 310:  # Check left boundary
-                            self.car_x_coordinate -= self.car_control
-                    if event.key == pygame.K_d:  # Move right
-                        if self.car_x_coordinate + self.car_control <= 460:  # Check right boundary
-                            self.car_x_coordinate += self.car_control
-                    if event.key == pygame.K_ESCAPE:  # Open menu
-                        self.show_pause_menu()
-                    if event.key == pygame.K_c:  # تغییر رنگ ماشین بازیکن
-                        self.load_car_image()  # تغییر تصویر ماشین بازیکن
-                    if event.key == pygame.K_h:  # پر کردن جون
-                        if self.lives < 5:  # اگر تعداد جون کمتر از حداکثر باشد
-                            self.lives += 1
-                    if event.key == pygame.K_b:  # تغییر پس‌زمینه
+                    if event.key == pygame.K_a:
+                        self.car_x_coordinate -= self.car_control
+                    if event.key == pygame.K_d:
+                        self.car_x_coordinate += self.car_control
+                    if event.key == pygame.K_b:
                         self.load_background_image()
-                    if event.key == pygame.K_e:  # تغییر رنگ ماشین دشمن
-                        self.load_enemy_car_image()
-                    if event.key == pygame.K_l and self.weapon_purchased:  # شلیک لیزر
-                        # اضافه کردن لیزر به لیست لیزرها
-                        laser_x = self.car_x_coordinate + self.car_width // 2
-                        laser_y = self.car_y_coordinate
-                        self.lasers.append([laser_x, laser_y])
+                    if event.key == pygame.K_ESCAPE:
+                        self.show_main_menu()
+                    if event.key == pygame.K_h:
+                        if self.lives < 5:  # Maximum 5 lives allowed
+                            self.lives += 1
+                    if event.key == pygame.K_f:
+                        if self.fuel < 100:
+                            self.fuel += 25
+                    if event.key == pygame.K_s:
+                        self.score += 50
+                    if event.key == pygame.K_c:
+                        self.bg_speed -= 5
+                        self.enemy_car_speed -= 100
+                    if event.key == pygame.K_SPACE:  # شلیک با دکمه Space
+                        self.fire_weapon()
 
-            # کم شدن سوخت
-            self.fuel -= 0.05
-            if self.fuel <= 0:
-                self.crashed = True
-                self.display_message("Out of Fuel!")
+            # Increase speed based on score
+            self.enemy_car_speed = 5 + (self.score // 50)
+            self.bg_speed = 3 + (self.score // 100)
 
+            # Check if car is out of bounds
+            if self.car_x_coordinate < 310 or self.car_x_coordinate > 460:
+                self.lives -= 1
+                if self.lives == 0:
+                    self.crashed = True
+
+            # Draw background
             self.gameDisplay.fill(self.black)
+            self.gameDisplay.blit(self.bgImg, (self.bg_x1, self.bg_y1))
+            self.gameDisplay.blit(self.bgImg, (self.bg_x2, self.bg_y2))
 
-            # نمایش جاده، پمپ سوخت، و ماشین دشمن
-            self.background_road()  # فراخوانی صحیح متد
-            self.run_fuel_pump(self.pump_x, self.pump_y)
-            self.pump_y += self.bg_speed
-            self.run_enemy_car(self.enemy_car_startx, self.enemy_car_starty)
-            self.enemy_car_starty += self.enemy_car_speed
+            # Move background
+            self.bg_y1 += self.bg_speed
+            self.bg_y2 += self.bg_speed
+
+            if self.bg_y1 >= self.display_height:
+                self.bg_y1 = -self.display_height
+            if self.bg_y2 >= self.display_height:
+                self.bg_y2 = -self.display_height
+
+            # Draw car
             self.car(self.car_x_coordinate, self.car_y_coordinate)
 
-            # به روز رسانی موقعیت پمپ سوخت و دشمن
+            # Draw enemy car
+            self.gameDisplay.blit(self.enemy_car, (self.enemy_car_startx, self.enemy_car_starty))
+            self.enemy_car_starty += self.enemy_car_speed
+
+            if self.enemy_car_starty > self.display_height:
+                self.enemy_car_starty = -self.enemy_car_height
+                self.enemy_car_startx = random.randint(310, 450)
+                self.score += 10
+
+            # Check collision
+            if self.car_y_coordinate < self.enemy_car_starty + self.enemy_car_height:
+                if self.car_x_coordinate > self.enemy_car_startx and self.car_x_coordinate < self.enemy_car_startx + self.enemy_car_width or \
+                        self.car_x_coordinate + self.car_width > self.enemy_car_startx and self.car_x_coordinate + self.car_width < self.enemy_car_startx + self.enemy_car_width:
+                    self.lives -= 1
+                    self.enemy_car_starty = -self.enemy_car_height
+                    if self.lives == 0:
+                        self.crashed = True
+
+            # Fuel pump logic
+            self.gameDisplay.blit(self.pumpImg, (self.pump_x, self.pump_y))
+            self.pump_y += self.bg_speed
             if self.pump_y > self.display_height:
                 self.pump_y = random.randint(-600, -100)
                 self.pump_x = random.randint(310, 450)
 
-            if self.enemy_car_starty > self.display_height:
-                self.enemy_car_starty = 0 - self.enemy_car_height
-                self.enemy_car_startx = random.randrange(310, 450)
-                self.score += 10  # افزایش امتیاز به ازای عبور از ماشین دشمن
+            # Check fuel collection
+            if self.pump_x < self.car_x_coordinate + self.car_width and self.pump_x + self.pump_width > self.car_x_coordinate:
+                if self.pump_y < self.car_y_coordinate + self.car_height and self.pump_y + self.pump_height > self.car_y_coordinate:
+                    self.fuel = min(100, self.fuel + 30)
+                    self.pump_y = random.randint(-600, -100)
 
-            # بررسی برخورد با پمپ سوخت
-            if (self.pump_x < self.car_x_coordinate + self.car_width and
-                self.pump_x + self.pump_width > self.car_x_coordinate and
-                self.pump_y < self.car_y_coordinate + self.car_height and
-                self.pump_y + self.pump_height > self.car_y_coordinate):
-                self.fuel = min(100, self.fuel + 30)  # Refuel, حداکثر مقدار سوخت 100 است
-                self.pump_y = random.randint(-600, -100)  # جابجایی پمپ بنزین به موقعیت جدید بعد از سوخت‌گیری
+            # Decrease fuel
+            self.fuel -= 0.1
+            if self.fuel <= 0:
+                self.crashed = True
 
-            # به‌روزرسانی و نمایش لیزرها
-            self.update_lasers()
-
-            # برخورد با ماشین دشمن
-            if not self.shield_active and self.car_y_coordinate < self.enemy_car_starty + self.enemy_car_height:
-                if (self.car_x_coordinate > self.enemy_car_startx and self.car_x_coordinate < self.enemy_car_startx + self.enemy_car_width) or \
-                   (self.car_x_coordinate + self.car_width > self.enemy_car_startx and self.car_x_coordinate + self.car_width < self.enemy_car_startx + self.enemy_car_width):
-                    self.lives -= 1
-                    if self.lives > 0:
-                        self.reset_enemy_position()
-                    else:
-                        self.crashed = True
-                        self.display_message("Game Over !!!")
-
-            # نمایش اطلاعات بازی
-            self.show_score(self.score)
-            self.display_fuel(self.fuel)
-            self.display_lives(self.lives)
-
-            # نمایش وضعیت سپر دفاعی
-            if self.shield_active:
-                self.display_shield_timer(current_time)
-
-            # نمایش تایمر اسلحه لیزری
-            if self.weapon_purchased:
-                self.display_weapon_timer(current_time)
-
-            self.count += 1
+            # Display lives and fuel
+            self.display_lives()
+            self.display_fuel()
+            self.display_score()
 
             pygame.display.update()
             self.clock.tick(60)
 
-    def update_lasers(self):
-        """به‌روزرسانی و نمایش لیزرها و بررسی برخورد آنها با ماشین دشمن"""
-        for laser in self.lasers[:]:
-            laser[1] -= 10  # حرکت لیزر به سمت بالا
-            if laser[1] < 0:
-                self.lasers.remove(laser)
+    def show_main_menu(self):
+        root = tk.Tk()
+        root.title("Main Menu")
+        root.configure(bg="black")
+
+        def start_game():
+            print("Start Game button clicked!")
+            root.destroy()
+            self.run_car()
+
+        def open_marketplace():
+            root.destroy()
+            self.show_marketplace()
+
+        def exit_game():
+            root.destroy()
+            self.crashed = True
+
+        tk.Label(root, text="Car Racing Game", font=("Helvetica", 20), fg="white", bg="black").pack(pady=20)
+        tk.Button(root, text="Start Game", font=("Helvetica", 16), command=start_game, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Marketplace", font=("Helvetica", 16), command=open_marketplace, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Exit", font=("Helvetica", 16), command=exit_game, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Save Game", font=("Helvetica", 16), command=self.save_game, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Load Game", font=("Helvetica", 16), command=self.load_game, bg="gray", fg="white").pack(pady=10)
+
+        root.mainloop()
+
+    def show_marketplace(self):
+        root = tk.Tk()
+        root.title("Marketplace")
+        root.configure(bg="black")
+
+        def buy_weapon():
+            if self.score >= 200 and not self.weapon_purchased:
+                self.weapon_purchased = True
+                self.laser_end_time = time.time() + 10
+                self.score -= 200
+                messagebox.showinfo("Purchase", "Weapon purchased!")
             else:
-                pygame.draw.rect(self.gameDisplay, self.red, (laser[0], laser[1], 5, 10))
+                messagebox.showerror("Error", "Not enough score or weapon already purchased!")
 
-            # بررسی برخورد لیزر با ماشین دشمن
-            if (self.enemy_car_startx < laser[0] < self.enemy_car_startx + self.enemy_car_width and
-                self.enemy_car_starty < laser[1] < self.enemy_car_starty + self.enemy_car_height):
-                self.reset_enemy_position()
-                self.lasers.remove(laser)
-                self.score += 50  # اضافه کردن 50 امتیاز به ازای برخورد لیزر با ماشین دشمن
+        def buy_shield():
+            if self.score >= 200:
+                self.shield_active = True
+                self.shield_end_time = time.time() + 5
+                self.score -= 200
+                messagebox.showinfo("Purchase", "Shield purchased!")
+            else:
+                messagebox.showerror("Error", "Not enough score!")
 
-    def display_shield_timer(self, current_time):
-        """نمایش تایمر سپر دفاعی در گوشه بالا سمت راست"""
-        if self.shield_active:
-            remaining_time = max(0, int(self.shield_end_time - current_time))
-            font = pygame.font.SysFont("lucidaconsole", 20)
-            shield_text = font.render(f"Shield: {remaining_time}s", True, (0, 255, 0))
-            self.gameDisplay.blit(shield_text, (self.display_width - 150, 10))
+        def buy_car_3():
+            if self.score >= 200:
+                self.car_selected = 2
+                self.load_car_image()
+                self.score -= 200
+                messagebox.showinfo("Purchase", "Car 3 purchased!")
+            else:
+                messagebox.showerror("Error", "Not enough score!")
 
-    def display_weapon_timer(self, current_time):
-        """نمایش تایمر اسلحه لیزری در گوشه بالا سمت چپ"""
-        remaining_time = max(0, int(self.laser_end_time - current_time))
-        font = pygame.font.SysFont("lucidaconsole", 20)
-        weapon_text = font.render(f"Laser: {remaining_time}s", True, (255, 0, 0))
-        self.gameDisplay.blit(weapon_text, (self.display_width - 300, 10))
+        def buy_car_2():
+            if self.score >= 300:
+                self.car_selected = 1
+                self.load_car_image()
+                self.score -= 300
+                messagebox.showinfo("Purchase", "Car 2 purchased!")
+            else:
+                messagebox.showerror("Error", "Not enough score!")
 
-    def show_pause_menu(self):
-        """نمایش منوی توقف بازی (Pause Menu)"""
-        paused = True
-        while paused:
-            self.gameDisplay.fill(self.black)
-            font = pygame.font.SysFont("lucidaconsole", 25)
-            resume_text = font.render("1. Resume", True, self.white)
-            marketplace_text = font.render("2. Marketplace", True, self.white)
-            exit_text = font.render("3. Exit", True, self.white)
+        def exit_market():
+            root.destroy()
+            self.show_main_menu()
 
-            self.gameDisplay.blit(resume_text, (self.display_width / 2 - 100, 150))
-            self.gameDisplay.blit(marketplace_text, (self.display_width / 2 - 100, 200))
-            self.gameDisplay.blit(exit_text, (self.display_width / 2 - 100, 250))
+        tk.Label(root, text="Marketplace", font=("Helvetica", 20), fg="white", bg="black").pack(pady=20)
+        tk.Button(root, text="Buy Weapon (200 score)", font=("Helvetica", 16), command=buy_weapon, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Buy Shield (200 score)", font=("Helvetica", 16), command=buy_shield, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Buy Car 3 (200 score)", font=("Helvetica", 16), command=buy_car_3, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Buy Car 2 (300 score)", font=("Helvetica", 16), command=buy_car_2, bg="gray", fg="white").pack(pady=10)
+        tk.Button(root, text="Exit Marketplace", font=("Helvetica", 16), command=exit_market, bg="gray", fg="white").pack(pady=10)
 
-            pygame.display.update()
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    paused = False
-                    self.crashed = True
-
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_1:  # Resume the game
-                        paused = False
-                    if event.key == pygame.K_2:  # Marketplace
-                        self.marketplace()
-                        paused = False
-                    if event.key == pygame.K_3:  # Exit
-                        paused = False
-                        self.crashed = True
-
-    def marketplace(self):
-        """نمایش منوی خرید از بازار"""
-        in_market = True
-        while in_market:
-            self.gameDisplay.fill(self.black)
-            font = pygame.font.SysFont("lucidaconsole", 25)
-            buy_weapon_text = font.render("1. Buy a Weapon (cost: 200 score, lasts 10 seconds)", True, self.white)
-            buy_shield_text = font.render("2. Buy a Shield (cost: 200 score, lasts 5 seconds)", True, self.white)
-            exit_market_text = font.render("3. Exit Marketplace", True, self.white)
-
-            self.gameDisplay.blit(buy_weapon_text, (self.display_width / 2 - 200, 150))
-            self.gameDisplay.blit(buy_shield_text, (self.display_width / 2 - 200, 200))
-            self.gameDisplay.blit(exit_market_text, (self.display_width / 2 - 200, 250))
-
-            pygame.display.update()
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    in_market = False
-                    self.crashed = True
-
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_1:  # خرید اسلحه
-                        if self.score >= 200 and not self.weapon_purchased:
-                            self.weapon_purchased = True
-                            self.laser_end_time = time.time() + 10  # اسلحه برای 10 ثانیه فعال است
-                            self.score -= 200
-                    if event.key == pygame.K_2:  # خرید سپر
-                        if self.score >= 200:
-                            self.shield_active = True
-                            self.shield_end_time = time.time() + 5  # سپر برای 5 ثانیه فعال است
-                            self.score -= 200
-                    if event.key == pygame.K_3:  # خروج از بازار
-                        in_market = False
-
-    def display_message(self, msg):
-        """نمایش پیام پایان بازی"""
-        font = pygame.font.SysFont("comicsansms", 72, True)
-        text = font.render(msg, True, self.white)
-        self.gameDisplay.blit(text, (self.display_width / 2 - text.get_width() // 2, self.display_height / 2 - text.get_height() // 2))
-        pygame.display.update()
-        sleep(2)
-
-    def background_road(self):
-        """نمایش تصویر پس‌زمینه"""
-        self.gameDisplay.blit(self.bgImg, (self.bg_x1, self.bg_y1))
-        self.gameDisplay.blit(self.bgImg, (self.bg_x2, self.bg_y2))
-
-        self.bg_y1 += self.bg_speed
-        self.bg_y2 += self.bg_speed
-
-        if self.bg_y1 >= self.display_height:
-            self.bg_y1 = -600
-
-        if self.bg_y2 >= self.display_height:
-            self.bg_y2 = -600
-
-    def run_enemy_car(self, thingx, thingy):
-        self.gameDisplay.blit(self.enemy_car, (thingx, thingy))
-
-    def run_fuel_pump(self, x, y):
-        self.gameDisplay.blit(self.pumpImg, (x, y))
-
-    def show_score(self, score):
-        """نمایش امتیاز در گوشه بالا سمت چپ"""
-        font = pygame.font.SysFont("lucidaconsole", 20)
-        text = font.render("Score : " + str(score), True, self.white)
-        self.gameDisplay.blit(text, (0, 0))
-
-    def display_fuel(self, fuel):
-        font = pygame.font.SysFont("lucidaconsole", 20)
-        text = font.render("Fuel : " + str(int(fuel)), True, (255, 255, 0))
-        self.gameDisplay.blit(text, (10, 40))
-
-    def display_lives(self, lives):
-        font = pygame.font.SysFont("lucidaconsole", 25)
-        text = "♥ " * lives
-        rendered_text = font.render(text, True, (255, 0, 0))
-        self.gameDisplay.blit(rendered_text, (10, 10))
-
-    def reset_enemy_position(self):
-        self.enemy_car_starty = -600
-        self.enemy_car_startx = random.randrange(310, 450)
+        root.mainloop()
 
 if __name__ == '__main__':
     car_racing = CarRacing()
