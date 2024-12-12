@@ -63,11 +63,6 @@ The **Car Dodge Game** is an engaging and interactive car racing game implemente
 - Include multiplayer support.
 - Enhance visuals with advanced graphics.
 
----
-
-### License
-
-[MIT License](LICENSE)
 
 ---
 
